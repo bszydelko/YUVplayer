@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
 	int32_t height = std::stoi(argv[3]);
 	int32_t chromaSubsampling = std::stoi(argv[4]);*/
 
-	std::string filename = "suzie_qcif.yuv";
+	std::string filename = "akiyo_qcif.yuv";
 	int32_t width = 176;
 	int32_t height = 144;
 	int32_t chromaSubsampling = 420;

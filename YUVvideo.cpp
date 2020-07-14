@@ -95,23 +95,31 @@ bool YUVvideo::readFrame()
 	YUVframe* f = new YUVframe(_width, _height, _chromaSubsampling);
 	YUVpixel p;
 
-	uint8_t mask = 0b11000000;
+	uint8_t mask = 0b00000011;
+	uint8_t shift = 6;
 	
 	for (size_t i = 0; i < _height; i++)
 	{
 		for (size_t j = 0; j < _width; j++)
 		{
-			
-			p = YUVpixel(
-				y[i * _width + j], 0, 0);
-				//u[(j * _width + i) % 4], 
-				//v[(j * _width + i) % 4]);
+			if (i % 2) //bottom row
+			{
+				p = YUVpixel(
+					y[i * _width + j],
+					(u[((i * _width + j) - _width) % 4] >> shift) and mask,
+					(v[((i * _width + j) - _width) % 4] >> shift) and mask);
+			}
+			else //top row
+			{
+				p = YUVpixel(
+					y[i * _width + j],
+					(u[(i * _width + j) % 4] >> shift) and mask,
+					(v[(i * _width + j) % 4] >> shift) and mask);
+			}
 			f->_pixels[i * _width + j] = p;
 
-			
-
-			mask >>= 2;
-			if (mask == 0b00000000) mask = 0b11000000;
+			shift -= 2;
+			if (shift < 0) shift = 6;
 		}
 	}
 
