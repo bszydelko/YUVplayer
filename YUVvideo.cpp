@@ -2,36 +2,48 @@
 #include <iostream>
 
 
-YUVpixel::YUVpixel()
+//==============================================================================================
+YUVframe::YUVframe(int32_t width, int32_t height, int32_t chromaSubsampling)
 {
-	_y = new uint8_t;
-	_u = new uint8_t;
-	_v = new uint8_t;
+	_width = width;
+	_height = height;
+	_chromaSubsampling = chromaSubsampling;
+
+	_c = _chromaSubsampling % 10;
+	_b = (_chromaSubsampling / 10) % 10;
+	_a = (_chromaSubsampling / 100) % 10;
+
+	_Y_size = _width * _height;
+	_U_size = (_width / _b) * (_height / _b);
+	_V_size = (_width / _b) * (_height / _b);
+
+	this->_Y_pixels = new uint8_t[_Y_size];
+	this->_U_pixels = new uint8_t[_U_size];
+	this->_V_pixels = new uint8_t[_V_size];
 }
 
-YUVpixel::YUVpixel(uint8_t y, uint8_t u, uint8_t v)
+YUVframe::~YUVframe()
 {
-	_y = new uint8_t;
-	_u = new uint8_t;
-	_v = new uint8_t;
-
-	*_y = y;
-	*_u = u;
-	*_v = v;
+	delete [] _Y_pixels;
+	delete [] _U_pixels;
+	delete [] _V_pixels;
 }
 
-YUVpixel::~YUVpixel()
+void YUVframe::set(int32_t w, int32_t h, uint8_t y, uint8_t u, uint8_t v)
 {
-	delete _y;
-	delete _u;
-	delete _v;
+	if (w >= 0 && w <= _width && h >= 0 && h <= _height)
+	{
+		_Y_pixels[h * _width + w] = y;
+		_U_pixels[(h / _b) * (_width / _b) + (w / _b)] = u;
+		_V_pixels[(h / _b) * (_width / _b) + (w / _b)] = v;
+	}
 }
 
-olc::Pixel YUVpixel::getRGB()
+olc::Pixel YUVframe::getRGB(int32_t w, int32_t h)
 {
-	float R = *_y + 1.402 * (*_v - 128);
-	float G = *_y - 0.344 * (*_u - 128) - 0.714 * (*_v - 128);
-	float B = *_y + 1.772 * (*_u - 128);
+	float R = _Y_pixels[h * _width + w] + 1.4075 * (_V_pixels[(h / _b) * (_width / _b) + (w / _b)] - 128);
+	float G = _Y_pixels[h * _width + w] - 0.3455 * (_U_pixels[(h / _b) * (_width / _b) + (w / _b)] - 128) - (0.7169 * (_V_pixels[(h / _b) * (_width / _b) + (w / _b)] - 128));
+	float B = _Y_pixels[h * _width + w] + 1.7790 * (_U_pixels[(h / _b) * (_width / _b) + (w / _b)] - 128);
 
 	if (R < 0) { R = 0; } if (G < 0) { G = 0; } if (B < 0) { B = 0; }
 	if (R > 255) { R = 255; } if (G > 255) { G = 255; } if (B > 255) { B = 255; }
@@ -39,26 +51,11 @@ olc::Pixel YUVpixel::getRGB()
 	return olc::Pixel(R, G, B);
 }
 
-void YUVpixel::operator=(const YUVpixel &p)
-{
-	std::memcpy(this->_y, p._y, sizeof(uint8_t));
-	std::memcpy(this->_u, p._u, sizeof(uint8_t));
-	std::memcpy(this->_v, p._v, sizeof(uint8_t));
-}
-//==============================================================================================
-YUVframe::YUVframe(int32_t width, int32_t height, int32_t chromaSubsampling)
-{
-	this->_pixels = new YUVpixel[width * height];
-}
-
-YUVframe::~YUVframe()
-{
-	delete [] _pixels;
-}
-
 void YUVframe::operator=(const YUVframe& f)
 {
-	std::memcpy(this->_pixels, f._pixels, sizeof(YUVpixel));
+	std::memcpy(this->_Y_pixels, f._Y_pixels, _width * _height * sizeof(uint8_t));
+	std::memcpy(this->_U_pixels, f._U_pixels, (_width / _b) * (_height / _b) * sizeof(uint8_t));
+	std::memcpy(this->_V_pixels, f._V_pixels, (_width / _b) * (_height / _b) * sizeof(uint8_t));
 }
 //==============================================================================================
 YUVvideo::YUVvideo(std::string filename, int width, int height, int chromaSubsampling) : 
@@ -71,7 +68,7 @@ YUVvideo::YUVvideo(std::string filename, int width, int height, int chromaSubsam
 	{
 		_error = true;
 	}
-	_frame = new YUVframe;
+	_frame = new YUVframe(_width, _height, _chromaSubsampling);
 }
 
 YUVvideo::~YUVvideo()
@@ -82,52 +79,9 @@ YUVvideo::~YUVvideo()
 
 bool YUVvideo::readFrame()
 {
-	char* y = new char[_width * _height];
-	_file.read(y, (long)_width * (long)_height);
-
-	char* u = new char[(_width * _height) / 4];
-	_file.read(u, (_width * _height) / 4);
-
-	char* v = new char[(_width * _height) / 4];
-	_file.read(v, (_width * _height) / 4);
-
-
-	YUVframe* f = new YUVframe(_width, _height, _chromaSubsampling);
-	YUVpixel p;
-
-	uint8_t mask = 0b00000011;
-	uint8_t shift = 6;
-	
-	for (size_t i = 0; i < _height; i++)
-	{
-		for (size_t j = 0; j < _width; j++)
-		{
-			if (i % 2) //bottom row
-			{
-				p = YUVpixel(
-					y[i * _width + j],
-					(u[((i * _width + j) - _width) % 4] >> shift) and mask,
-					(v[((i * _width + j) - _width) % 4] >> shift) and mask);
-			}
-			else //top row
-			{
-				p = YUVpixel(
-					y[i * _width + j],
-					(u[(i * _width + j) % 4] >> shift) and mask,
-					(v[(i * _width + j) % 4] >> shift) and mask);
-			}
-			f->_pixels[i * _width + j] = p;
-
-			shift -= 2;
-			if (shift < 0) shift = 6;
-		}
-	}
-
-	_frame = f;
-
-	delete []y;
-	delete []u;
-	delete []v;
+	_file.read((char*)_frame->_Y_pixels, _frame->_Y_size);
+	_file.read((char*)_frame->_U_pixels, _frame->_U_size);
+	_file.read((char*)_frame->_V_pixels, _frame->_V_size);
 
 	if (_file.eof()) return false;
 
@@ -136,14 +90,11 @@ bool YUVvideo::readFrame()
 
 bool YUVvideo::drawFrame(olc::PixelGameEngine* pge)
 {
-	for (size_t i = 0; i < _height; i++)
+	for (size_t h = 0; h < _height; h++)
 	{
-		for (size_t j = 0; j < _width; j++)
+		for (size_t w = 0; w < _width; w++)
 		{
-			YUVpixel yuvp = _frame->_pixels[i * _width + j];
-			olc::Pixel p = yuvp.getRGB();
-			pge->Draw(j, i, p);
-
+			pge->Draw(w, h, _frame->getRGB(w, h));
 		}
 	}
 

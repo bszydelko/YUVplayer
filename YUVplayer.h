@@ -7,10 +7,13 @@
 // Override base class with your custom functionality
 class YUVplayer : public olc::PixelGameEngine
 {
-public:
+private:
 	YUVvideo* _video;
-	YUVplayer(YUVvideo* video);
+	float _videoLength;
+	int32_t _frameCount;
+	float _frameLength;
 public:
+	YUVplayer(YUVvideo* video);
 	bool OnUserCreate() override;
 	bool OnUserUpdate(float fElapsedTime) override;
 };
