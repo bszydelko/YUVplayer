@@ -1,5 +1,6 @@
 # YUVplayer
 Works only for yuv420p (planar)
+
 Usage in console:
 `> YUVplayer.exe <filename> <width> <height> <chroma subsampling>`
 
